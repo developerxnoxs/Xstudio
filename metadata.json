@@ -1,0 +1,6 @@
+{
+  "name": "Android Studio Mobile",
+  "description": "Full-featured Android IDE on Android. Create, code, design UI, AI-assist, compile and run Android apps directly on your device.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
