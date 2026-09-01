@@ -32,6 +32,12 @@ import com.example.core.BuildDiagnostic
 import com.example.data.local.ProjectEntity
 import com.example.data.local.ProjectFileEntity
 import com.example.ui.components.AppInspectorView
+import com.example.ui.components.DependencyItem
+import com.example.ui.components.DependencyUpgradeView
+import com.example.ui.components.GitVisualDiffView
+import com.example.ui.components.NetworkInspectorView
+import com.example.ui.components.PerformanceProfilerView
+import com.example.ui.components.VectorAssetStudioView
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.LogcatEntry
 
@@ -50,6 +56,8 @@ fun LogcatTerminalSheet(
     allProjects: List<ProjectEntity> = emptyList(),
     currentFiles: List<ProjectFileEntity> = emptyList(),
     gitHubToken: String? = null,
+    activeFile: ProjectFileEntity? = null,
+    editorContent: String = "",
     onTabChange: (Int) -> Unit,
     onFilterChange: (String) -> Unit,
     onClearLogs: () -> Unit,
@@ -58,6 +66,13 @@ fun LogcatTerminalSheet(
     onDiagnosticClick: (BuildDiagnostic) -> Unit,
     onAskAiDiagnostic: (BuildDiagnostic) -> Unit = {},
     onAutoHealProject: () -> Unit = {},
+    onSaveVectorAsset: (String, String) -> Unit = { _, _ -> },
+    onApplyDependencyUpgrade: (DependencyItem) -> Unit = {},
+    onUpgradeAllDependencies: () -> Unit = {},
+    onTriggerGc: () -> Unit = {},
+    onAcceptAllDiffIncoming: () -> Unit = {},
+    onAcceptAllDiffCurrent: () -> Unit = {},
+    onLogNetworkEvent: (String, String, String) -> Unit = { _, _, _ -> },
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -141,6 +156,61 @@ fun LogcatTerminalSheet(
                                 Icon(Icons.Default.Storage, contentDescription = null, tint = StudioCyan, modifier = Modifier.size(13.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text("App Inspection", fontSize = 12.sp, fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Normal)
+                            }
+                        }
+                    )
+                    Tab(
+                        selected = selectedTab == 4,
+                        onClick = { onTabChange(4) },
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Language, contentDescription = null, tint = StudioGreen, modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Network", fontSize = 12.sp, fontWeight = if (selectedTab == 4) FontWeight.Bold else FontWeight.Normal)
+                            }
+                        }
+                    )
+                    Tab(
+                        selected = selectedTab == 5,
+                        onClick = { onTabChange(5) },
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Speed, contentDescription = null, tint = StudioOrange, modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Profiler", fontSize = 12.sp, fontWeight = if (selectedTab == 5) FontWeight.Bold else FontWeight.Normal)
+                            }
+                        }
+                    )
+                    Tab(
+                        selected = selectedTab == 6,
+                        onClick = { onTabChange(6) },
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.SystemUpdateAlt, contentDescription = null, tint = StudioPurple, modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Dependencies", fontSize = 12.sp, fontWeight = if (selectedTab == 6) FontWeight.Bold else FontWeight.Normal)
+                            }
+                        }
+                    )
+                    Tab(
+                        selected = selectedTab == 7,
+                        onClick = { onTabChange(7) },
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Palette, contentDescription = null, tint = StudioCyan, modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Vector Studio", fontSize = 12.sp, fontWeight = if (selectedTab == 7) FontWeight.Bold else FontWeight.Normal)
+                            }
+                        }
+                    )
+                    Tab(
+                        selected = selectedTab == 8,
+                        onClick = { onTabChange(8) },
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Difference, contentDescription = null, tint = StudioGreen, modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Git Diff", fontSize = 12.sp, fontWeight = if (selectedTab == 8) FontWeight.Bold else FontWeight.Normal)
                             }
                         }
                     )
@@ -606,6 +676,56 @@ fun LogcatTerminalSheet(
                         allProjects = allProjects,
                         currentFiles = currentFiles,
                         gitHubToken = gitHubToken,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                    )
+                }
+                4 -> {
+                    // Network & API Traffic Inspector
+                    NetworkInspectorView(
+                        onLogEvent = onLogNetworkEvent,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                    )
+                }
+                5 -> {
+                    // Runtime Profiler (CPU, RAM, FPS, GC)
+                    PerformanceProfilerView(
+                        onTriggerGc = onTriggerGc,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                    )
+                }
+                6 -> {
+                    // Dependency & Version Catalog Assistant
+                    DependencyUpgradeView(
+                        files = currentFiles,
+                        onApplyUpgrade = onApplyDependencyUpgrade,
+                        onUpgradeAll = onUpgradeAllDependencies,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                    )
+                }
+                7 -> {
+                    // Vector Asset Studio & SVG-to-XML
+                    VectorAssetStudioView(
+                        onSaveToDrawable = onSaveVectorAsset,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                    )
+                }
+                8 -> {
+                    // Git Visual Diff & Merge Tool
+                    GitVisualDiffView(
+                        activeFile = activeFile,
+                        currentEditorContent = editorContent,
+                        onAcceptAllIncoming = onAcceptAllDiffIncoming,
+                        onAcceptAllCurrent = onAcceptAllDiffCurrent,
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()

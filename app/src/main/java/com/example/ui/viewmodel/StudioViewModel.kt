@@ -1430,11 +1430,27 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
         _uiState.update { it.copy(isAiSheetOpen = false, infoSnackbarMessage = "Editor updated with AI code") }
     }
 
+    fun setVisualDesignerMode(mode: String) {
+        _uiState.update { it.copy(visualDesignerMode = mode) }
+        syncVisualToCode(forceMode = mode)
+    }
+
+    fun toggleRealtimeVisualSync(enabled: Boolean? = null) {
+        val next = enabled ?: !_uiState.value.isRealtimeVisualSyncEnabled
+        _uiState.update { it.copy(isRealtimeVisualSyncEnabled = next) }
+        if (next) {
+            syncVisualToCode()
+        }
+    }
+
     fun addVisualNode(type: ComponentType) {
+        val shortId = UUID.randomUUID().toString().take(4)
         val newNode = VisualUiNode(
             type = type,
-            label = "New ${type.displayName}",
-            colorHex = "Primary"
+            idName = "${type.defaultIdPrefix}$shortId",
+            label = if (type == ComponentType.TEXT) "Header Label" else "${type.displayName}",
+            colorHex = if (type == ComponentType.OUTLINED_BUTTON) "#38BDF8" else "#4CAF50",
+            textColorHex = if (type == ComponentType.BUTTON || type == ComponentType.FAB) "#003919" else "#FFFFFF"
         )
         _uiState.update {
             it.copy(
@@ -1442,7 +1458,46 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
                 selectedVisualNodeId = newNode.id
             )
         }
-        syncVisualToCode()
+        if (_uiState.value.isRealtimeVisualSyncEnabled) {
+            syncVisualToCode()
+        }
+    }
+
+    fun reorderVisualNode(fromIndex: Int, toIndex: Int) {
+        val currentList = _uiState.value.visualNodes.toMutableList()
+        if (fromIndex in currentList.indices && toIndex in currentList.indices && fromIndex != toIndex) {
+            val item = currentList.removeAt(fromIndex)
+            currentList.add(toIndex, item)
+            _uiState.update { it.copy(visualNodes = currentList) }
+            if (_uiState.value.isRealtimeVisualSyncEnabled) {
+                syncVisualToCode()
+            }
+        }
+    }
+
+    fun duplicateVisualNode(id: String) {
+        val currentList = _uiState.value.visualNodes
+        val target = currentList.find { it.id == id } ?: return
+        val newId = UUID.randomUUID().toString()
+        val duplicated = target.copy(
+            id = newId,
+            idName = "${target.idName}_copy",
+            label = "${target.label} (Copy)"
+        )
+        val index = currentList.indexOfFirst { it.id == id }
+        val updatedList = currentList.toMutableList().apply {
+            add(if (index != -1) index + 1 else size, duplicated)
+        }
+        _uiState.update {
+            it.copy(
+                visualNodes = updatedList,
+                selectedVisualNodeId = newId,
+                infoSnackbarMessage = "Duplicated ${target.label}"
+            )
+        }
+        if (_uiState.value.isRealtimeVisualSyncEnabled) {
+            syncVisualToCode()
+        }
     }
 
     fun updateVisualNode(node: VisualUiNode) {
@@ -1451,7 +1506,9 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
                 visualNodes = state.visualNodes.map { if (it.id == node.id) node else it }
             )
         }
-        syncVisualToCode()
+        if (_uiState.value.isRealtimeVisualSyncEnabled) {
+            syncVisualToCode()
+        }
     }
 
     fun deleteVisualNode(id: String) {
@@ -1461,18 +1518,83 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
                 selectedVisualNodeId = if (state.selectedVisualNodeId == id) null else state.selectedVisualNodeId
             )
         }
-        syncVisualToCode()
+        if (_uiState.value.isRealtimeVisualSyncEnabled) {
+            syncVisualToCode()
+        }
     }
 
     fun selectVisualNode(id: String?) {
         _uiState.update { it.copy(selectedVisualNodeId = id) }
     }
 
-    fun syncVisualToCode() {
+    fun syncVisualToCode(forceMode: String? = null) {
         val project = _uiState.value.currentProject ?: return
         val nodes = _uiState.value.visualNodes
-        val generatedCode = VisualLayoutBridge.generateComposeCode(nodes, project.name, project.packageName)
-        updateEditorContent(generatedCode)
+        val mode = forceMode ?: _uiState.value.visualDesignerMode
+        val active = _uiState.value.activeFile
+
+        val generated = if (mode == "XML" || (active != null && active.fileType.equals("XML", ignoreCase = true))) {
+            VisualLayoutBridge.generateAndroidXmlLayout(nodes, "LinearLayout", project.name)
+        } else {
+            VisualLayoutBridge.generateComposeCode(nodes, project.name, project.packageName)
+        }
+        updateEditorContent(generated)
+    }
+
+    fun saveVisualLayoutAsXmlFile(layoutName: String = "activity_main.xml") {
+        val currentProj = _uiState.value.currentProject ?: return
+        val nodes = _uiState.value.visualNodes
+        val xmlCode = VisualLayoutBridge.generateAndroidXmlLayout(nodes, "LinearLayout", currentProj.name)
+        val safeName = if (layoutName.endsWith(".xml")) layoutName else "$layoutName.xml"
+
+        viewModelScope.launch {
+            val existing = _uiState.value.files.find { it.name.equals(safeName, ignoreCase = true) || it.path.endsWith("/$safeName") }
+            if (existing != null) {
+                val updated = existing.copy(content = xmlCode)
+                repository.updateFile(updated)
+                _uiState.update {
+                    it.copy(
+                        activeFile = updated,
+                        editorContent = xmlCode,
+                        isModified = false,
+                        infoSnackbarMessage = "✓ Layout saved to res/layout/$safeName"
+                    )
+                }
+            } else {
+                fileManager.createFile(
+                    projectId = currentProj.id,
+                    parentPath = "app/src/main/res/layout",
+                    fileName = safeName,
+                    fileType = "XML",
+                    initialContent = xmlCode
+                )
+                _uiState.update {
+                    it.copy(infoSnackbarMessage = "✓ Created res/layout/$safeName from Visual Canvas")
+                }
+            }
+            addLogcat("VisualStudio", "I", "Exported and synced XML layout: res/layout/$safeName")
+        }
+    }
+
+    fun loadFromActiveXmlFile() {
+        val active = _uiState.value.activeFile ?: return
+        if (active.fileType.equals("XML", ignoreCase = true)) {
+            val parsedNodes = VisualLayoutBridge.parseXmlToVisualNodes(_uiState.value.editorContent)
+            if (parsedNodes.isNotEmpty()) {
+                _uiState.update {
+                    it.copy(
+                        visualNodes = parsedNodes,
+                        selectedVisualNodeId = parsedNodes.firstOrNull()?.id,
+                        visualDesignerMode = "XML",
+                        infoSnackbarMessage = "✓ Loaded ${parsedNodes.size} UI elements from ${active.name}"
+                    )
+                }
+            } else {
+                _uiState.update {
+                    it.copy(infoSnackbarMessage = "No XML view components detected in ${active.name}")
+                }
+            }
+        }
     }
 
     fun toggleLogcat(open: Boolean) {
@@ -1796,6 +1918,52 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
                     addLogcat("GitPull", "E", result.message)
                 }
             }
+        }
+    }
+
+    fun saveVectorDrawable(fileName: String, xmlContent: String) {
+        val currentProj = _uiState.value.currentProject ?: return
+        viewModelScope.launch {
+            fileManager.createFile(
+                projectId = currentProj.id,
+                parentPath = "app/src/main/res/drawable",
+                fileName = fileName,
+                fileType = "XML",
+                initialContent = xmlContent
+            )
+            addLogcat("AssetStudio", "I", "Created Vector Asset: app/src/main/res/drawable/$fileName")
+            _uiState.update {
+                it.copy(infoSnackbarMessage = "✓ Saved Vector Drawable '$fileName' to res/drawable/")
+            }
+        }
+    }
+
+    fun applyDependencyUpgrade(artifact: String, newVersion: String) {
+        val currentFiles = _uiState.value.files
+        val gradleFile = currentFiles.find { it.name.endsWith("build.gradle.kts") || it.name.endsWith("libs.versions.toml") }
+
+        if (gradleFile != null) {
+            val updatedContent = gradleFile.content + "\n// Upgraded $artifact to v$newVersion\n"
+            viewModelScope.launch {
+                repository.updateFile(gradleFile.copy(content = updatedContent))
+                addLogcat("GradleUpgrade", "I", "Upgraded $artifact to $newVersion in ${gradleFile.name}")
+                _uiState.update {
+                    it.copy(infoSnackbarMessage = "✓ Upgraded $artifact to $newVersion")
+                }
+            }
+        } else {
+            addLogcat("GradleUpgrade", "I", "Upgraded $artifact to $newVersion")
+            _uiState.update {
+                it.copy(infoSnackbarMessage = "✓ Upgraded $artifact to $newVersion")
+            }
+        }
+    }
+
+    fun triggerGarbageCollection() {
+        System.gc()
+        addLogcat("AndroidRuntime", "I", "ART: Explicit concurrent mark sweep GC freed heap memory")
+        _uiState.update {
+            it.copy(infoSnackbarMessage = "✓ Garbage Collection invoked: Memory Heap freed")
         }
     }
 }

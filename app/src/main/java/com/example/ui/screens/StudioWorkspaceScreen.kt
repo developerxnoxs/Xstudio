@@ -78,274 +78,352 @@ fun StudioWorkspaceScreen(
     ) {
         Scaffold(
             topBar = {
-                TopAppBar(
-                    navigationIcon = {
-                        IconButton(onClick = { coroutineScope.launch { drawerState.open() } }) {
-                            Icon(Icons.Default.Menu, contentDescription = "Open File Explorer", tint = Color.White)
-                        }
-                    },
-                    title = {
-                        Column {
-                            Text(
-                                text = uiState.currentProject?.name ?: "Android Studio Mobile",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = Color.White
-                            )
-                            Text(
-                                text = uiState.activeFile?.name ?: "No file open",
-                                fontSize = 11.sp,
-                                color = StudioGreen
-                            )
-                        }
-                    },
-                    actions = {
-                        // View Mode Switcher
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = StudioSurfaceVariant,
-                            modifier = Modifier.padding(end = 4.dp)
-                        ) {
-                            Row(modifier = Modifier.padding(2.dp)) {
-                                IconButton(
-                                    onClick = { viewModel.setViewMode(StudioViewMode.CODE_ONLY) },
-                                    modifier = Modifier.size(30.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Code,
-                                        contentDescription = "Code",
-                                        tint = if (uiState.viewMode == StudioViewMode.CODE_ONLY) StudioGreen else Color.Gray,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                                IconButton(
-                                    onClick = { viewModel.setViewMode(StudioViewMode.SPLIT_VIEW) },
-                                    modifier = Modifier.size(30.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.VerticalSplit,
-                                        contentDescription = "Split",
-                                        tint = if (uiState.viewMode == StudioViewMode.SPLIT_VIEW) StudioGreen else Color.Gray,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                                IconButton(
-                                    onClick = { viewModel.setViewMode(StudioViewMode.DESIGN_ONLY) },
-                                    modifier = Modifier.size(30.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Palette,
-                                        contentDescription = "Design",
-                                        tint = if (uiState.viewMode == StudioViewMode.DESIGN_ONLY) StudioGreen else Color.Gray,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                        }
-
-                        // Git & GitHub Sync Action
-                        IconButton(
-                            onClick = {
-                                if (uiState.currentProject?.isGitHubProject == true) {
-                                    viewModel.toggleGitHubSyncDialog(true)
-                                } else {
-                                    viewModel.toggleGitHubImportDialog(true)
-                                }
-                            }
-                        ) {
-                            Icon(
-                                if (uiState.currentProject?.isGitHubProject == true) Icons.Default.CloudSync else Icons.Default.CloudDownload,
-                                contentDescription = "Git & GitHub",
-                                tint = if (uiState.currentProject?.isGitHubProject == true) StudioGreen else Color.LightGray
-                            )
-                        }
-
-                        // Run App Button
-                        FilledIconButton(
-                            onClick = { viewModel.runBuildAndRun() },
-                            colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = if (uiState.isBuilding) Color.Gray else StudioGreen
-                            ),
-                            modifier = Modifier.size(34.dp),
-                            enabled = !uiState.isBuilding
-                        ) {
-                            if (uiState.isBuilding) {
-                                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
-                            } else {
-                                Icon(Icons.Default.PlayArrow, contentDescription = "Run App", tint = Color(0xFF003919), modifier = Modifier.size(20.dp))
-                            }
-                        }
-
-                        // Autonomous Agent 99% Quick Launcher
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = if (uiState.autonomousAgent.isActive) StudioGreen.copy(alpha = 0.25f) else StudioSurfaceVariant,
-                            border = BorderStroke(1.dp, if (uiState.autonomousAgent.isActive) StudioGreen else StudioBorder),
+                Surface(
+                    color = StudioSurface,
+                    tonalElevation = 4.dp,
+                    border = BorderStroke(0.5.dp, StudioBorder)
+                ) {
+                    Column {
+                        Row(
                             modifier = Modifier
-                                .height(32.dp)
-                                .clickable { viewModel.toggleAiSheet(true) }
+                                .fillMaxWidth()
+                                .statusBarsPadding()
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
+                            // Left: Drawer button and Project name
                             Row(
-                                modifier = Modifier.padding(horizontal = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f, fill = false)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.SmartToy,
-                                    contentDescription = "Agent Otonom",
-                                    tint = if (uiState.autonomousAgent.isActive) StudioGreen else StudioCyan,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                                IconButton(
+                                    onClick = { coroutineScope.launch { drawerState.open() } },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(Icons.Default.Menu, contentDescription = "Buka File Explorer", tint = Color.White)
+                                }
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = if (uiState.autonomousAgent.isActive) "Running 99%" else "Agent 99%",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (uiState.autonomousAgent.isActive) StudioGreen else Color.White
-                                )
+                                Column {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = uiState.currentProject?.name ?: "Android Studio",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = Color.White,
+                                            maxLines = 1
+                                        )
+                                        if (uiState.currentProject?.isGitHubProject == true) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Surface(
+                                                shape = RoundedCornerShape(4.dp),
+                                                color = StudioGreen.copy(alpha = 0.15f),
+                                                border = BorderStroke(0.5.dp, StudioGreen.copy(alpha = 0.3f))
+                                            ) {
+                                                Text(
+                                                    "Git",
+                                                    fontSize = 8.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = StudioGreen,
+                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Text(
+                                        text = uiState.activeFile?.name ?: "No file open",
+                                        fontSize = 11.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = StudioGreen,
+                                        maxLines = 1
+                                    )
+                                }
                             }
-                        }
 
-                        // Studio Bot (Gemini)
-                        IconButton(onClick = { viewModel.toggleAiSheet(true) }) {
-                            Icon(Icons.Default.AutoAwesome, contentDescription = "Studio Bot", tint = StudioGreen)
-                        }
-
-                        // More options
-                        Box {
-                            IconButton(onClick = { showOverflowMenu = true }) {
-                                Icon(Icons.Default.MoreVert, contentDescription = "More", tint = Color.White)
-                            }
-                            DropdownMenu(
-                                expanded = showOverflowMenu,
-                                onDismissRequest = { showOverflowMenu = false }
+                            // Right Action Dock
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                DropdownMenuItem(
-                                    text = { Text("Git & GitHub Sync") },
-                                    leadingIcon = { Icon(Icons.Default.CloudSync, contentDescription = null, tint = StudioGreen) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        viewModel.toggleGitHubSyncDialog(true)
+                                // View Mode Segmented Pill
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = StudioBackground,
+                                    border = BorderStroke(0.5.dp, StudioBorder)
+                                ) {
+                                    Row(modifier = Modifier.padding(2.dp)) {
+                                        IconButton(
+                                            onClick = { viewModel.setViewMode(StudioViewMode.CODE_ONLY) },
+                                            modifier = Modifier
+                                                .size(28.dp)
+                                                .background(
+                                                    if (uiState.viewMode == StudioViewMode.CODE_ONLY) StudioSurfaceVariant else Color.Transparent,
+                                                    RoundedCornerShape(6.dp)
+                                                )
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Code,
+                                                contentDescription = "Code",
+                                                tint = if (uiState.viewMode == StudioViewMode.CODE_ONLY) StudioGreen else Color.Gray,
+                                                modifier = Modifier.size(15.dp)
+                                            )
+                                        }
+                                        IconButton(
+                                            onClick = { viewModel.setViewMode(StudioViewMode.SPLIT_VIEW) },
+                                            modifier = Modifier
+                                                .size(28.dp)
+                                                .background(
+                                                    if (uiState.viewMode == StudioViewMode.SPLIT_VIEW) StudioSurfaceVariant else Color.Transparent,
+                                                    RoundedCornerShape(6.dp)
+                                                )
+                                        ) {
+                                            Icon(
+                                                Icons.Default.VerticalSplit,
+                                                contentDescription = "Split",
+                                                tint = if (uiState.viewMode == StudioViewMode.SPLIT_VIEW) StudioGreen else Color.Gray,
+                                                modifier = Modifier.size(15.dp)
+                                            )
+                                        }
+                                        IconButton(
+                                            onClick = { viewModel.setViewMode(StudioViewMode.DESIGN_ONLY) },
+                                            modifier = Modifier
+                                                .size(28.dp)
+                                                .background(
+                                                    if (uiState.viewMode == StudioViewMode.DESIGN_ONLY) StudioSurfaceVariant else Color.Transparent,
+                                                    RoundedCornerShape(6.dp)
+                                                )
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Palette,
+                                                contentDescription = "Design",
+                                                tint = if (uiState.viewMode == StudioViewMode.DESIGN_ONLY) StudioGreen else Color.Gray,
+                                                modifier = Modifier.size(15.dp)
+                                            )
+                                        }
                                     }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Import from GitHub") },
-                                    leadingIcon = { Icon(Icons.Default.CloudDownload, contentDescription = null, tint = StudioGreen) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        viewModel.toggleGitHubImportDialog(true)
+                                }
+
+                                // Quick Run Button with High Contrast
+                                FilledIconButton(
+                                    onClick = { viewModel.runBuildAndRun() },
+                                    colors = IconButtonDefaults.filledIconButtonColors(
+                                        containerColor = if (uiState.isBuilding) StudioSurfaceVariant else StudioGreen,
+                                        contentColor = if (uiState.isBuilding) Color.White else Color(0xFF003919)
+                                    ),
+                                    modifier = Modifier.size(32.dp),
+                                    enabled = !uiState.isBuilding,
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    if (uiState.isBuilding) {
+                                        CircularProgressIndicator(modifier = Modifier.size(14.dp), color = StudioGreen, strokeWidth = 2.dp)
+                                    } else {
+                                        Icon(Icons.Default.PlayArrow, contentDescription = "Run App", modifier = Modifier.size(18.dp))
                                     }
-                                )
-                                HorizontalDivider()
-                                DropdownMenuItem(
-                                    text = { Text("Find & Replace") },
-                                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        viewModel.toggleSearch(true)
+                                }
+
+                                // Autonomous Agent 99% Quick Pill
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (uiState.autonomousAgent.isActive) StudioGreen.copy(alpha = 0.2f) else StudioSurfaceVariant,
+                                    border = BorderStroke(0.8.dp, if (uiState.autonomousAgent.isActive) StudioGreen else StudioBorder),
+                                    modifier = Modifier
+                                        .height(32.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { viewModel.toggleAiSheet(true) }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.SmartToy,
+                                            contentDescription = "Agent Otonom",
+                                            tint = if (uiState.autonomousAgent.isActive) StudioGreen else StudioCyan,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = if (uiState.autonomousAgent.isActive) "Running..." else "AI Bot",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (uiState.autonomousAgent.isActive) StudioGreen else Color.White
+                                        )
                                     }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Format Code (Ctrl+Alt+L)") },
-                                    leadingIcon = { Icon(Icons.Default.AutoFixHigh, contentDescription = null, tint = StudioGreen) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        val activeContent = uiState.activeFile?.content ?: ""
-                                        val fileType = uiState.activeFile?.fileType ?: "KOTLIN"
-                                        val formatted = com.example.editor.IntelliSenseEngine.formatCode(activeContent, fileType)
-                                        viewModel.updateEditorContent(formatted)
+                                }
+
+                                // Overflow Menu
+                                Box {
+                                    IconButton(
+                                        onClick = { showOverflowMenu = true },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(Icons.Default.MoreVert, contentDescription = "More", tint = Color.White, modifier = Modifier.size(18.dp))
                                     }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Build Output & Diagnostics") },
-                                    leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        viewModel.setBottomTab(0)
+                                    DropdownMenu(
+                                        expanded = showOverflowMenu,
+                                        onDismissRequest = { showOverflowMenu = false }
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text("Git & GitHub Sync") },
+                                            leadingIcon = { Icon(Icons.Default.CloudSync, contentDescription = null, tint = StudioGreen) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                viewModel.toggleGitHubSyncDialog(true)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Import from GitHub") },
+                                            leadingIcon = { Icon(Icons.Default.CloudDownload, contentDescription = null, tint = StudioGreen) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                viewModel.toggleGitHubImportDialog(true)
+                                            }
+                                        )
+                                        HorizontalDivider()
+                                        DropdownMenuItem(
+                                            text = { Text("Find & Replace") },
+                                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                viewModel.toggleSearch(true)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Format Code (Ctrl+Alt+L)") },
+                                            leadingIcon = { Icon(Icons.Default.AutoFixHigh, contentDescription = null, tint = StudioGreen) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                val activeContent = uiState.activeFile?.content ?: ""
+                                                val fileType = uiState.activeFile?.fileType ?: "KOTLIN"
+                                                val formatted = com.example.editor.IntelliSenseEngine.formatCode(activeContent, fileType)
+                                                viewModel.updateEditorContent(formatted)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Build Output & Diagnostics") },
+                                            leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                viewModel.setBottomTab(0)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Logcat Console") },
+                                            leadingIcon = { Icon(Icons.Default.Article, contentDescription = null) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                viewModel.setBottomTab(1)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Terminal Shell") },
+                                            leadingIcon = { Icon(Icons.Default.Terminal, contentDescription = null) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                viewModel.setBottomTab(2)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("App Inspection & Database") },
+                                            leadingIcon = { Icon(Icons.Default.Storage, contentDescription = null, tint = StudioCyan) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                viewModel.setBottomTab(3)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Network & Traffic Inspector") },
+                                            leadingIcon = { Icon(Icons.Default.Language, contentDescription = null, tint = StudioGreen) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                viewModel.setBottomTab(4)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Performance Profiler (CPU/RAM)") },
+                                            leadingIcon = { Icon(Icons.Default.Speed, contentDescription = null, tint = StudioOrange) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                viewModel.setBottomTab(5)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Dependency Upgrade Assistant") },
+                                            leadingIcon = { Icon(Icons.Default.SystemUpdateAlt, contentDescription = null, tint = StudioPurple) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                viewModel.setBottomTab(6)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Vector Asset Studio & SVG") },
+                                            leadingIcon = { Icon(Icons.Default.Palette, contentDescription = null, tint = StudioCyan) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                viewModel.setBottomTab(7)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Git Visual Diff & Conflicts") },
+                                            leadingIcon = { Icon(Icons.Default.Difference, contentDescription = null, tint = StudioGreen) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                viewModel.setBottomTab(8)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Auto-Heal Project (Fix Errors)") },
+                                            leadingIcon = { Icon(Icons.Default.Healing, contentDescription = null, tint = StudioOrange) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                viewModel.autoHealProjectAndRun()
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Pixel 9 Pro Emulator") },
+                                            leadingIcon = { Icon(Icons.Default.Smartphone, contentDescription = null, tint = StudioGreen) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                viewModel.toggleEmulator(true)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Install / Export APK") },
+                                            leadingIcon = { Icon(Icons.Default.Android, contentDescription = null) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                viewModel.toggleExportDialog(true)
+                                            }
+                                        )
+                                        HorizontalDivider()
+                                        DropdownMenuItem(
+                                            text = { Text("Projects Dashboard") },
+                                            leadingIcon = { Icon(Icons.Default.Dashboard, contentDescription = null) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                onNavigateToDashboard()
+                                            }
+                                        )
                                     }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Logcat Console") },
-                                    leadingIcon = { Icon(Icons.Default.Article, contentDescription = null) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        viewModel.setBottomTab(1)
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Terminal Shell") },
-                                    leadingIcon = { Icon(Icons.Default.Terminal, contentDescription = null) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        viewModel.setBottomTab(2)
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("App Inspection & Database") },
-                                    leadingIcon = { Icon(Icons.Default.Storage, contentDescription = null, tint = StudioCyan) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        viewModel.setBottomTab(3)
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Auto-Heal Project (Fix Errors)") },
-                                    leadingIcon = { Icon(Icons.Default.Healing, contentDescription = null, tint = StudioOrange) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        viewModel.autoHealProjectAndRun()
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Install to Virtual Device (Emulator)") },
-                                    leadingIcon = { Icon(Icons.Default.InstallMobile, contentDescription = null, tint = StudioGreen) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        viewModel.installAppToVirtualDevice()
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Virtual Android Emulator") },
-                                    leadingIcon = { Icon(Icons.Default.Smartphone, contentDescription = null) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        viewModel.toggleEmulator(true)
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Install / Export APK") },
-                                    leadingIcon = { Icon(Icons.Default.Android, contentDescription = null) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        viewModel.toggleExportDialog(true)
-                                    }
-                                )
-                                HorizontalDivider()
-                                DropdownMenuItem(
-                                    text = { Text("Projects Dashboard") },
-                                    leadingIcon = { Icon(Icons.Default.Dashboard, contentDescription = null) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        onNavigateToDashboard()
-                                    }
-                                )
+                                }
                             }
                         }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = StudioSurface)
-                )
+                    }
+                }
             },
             bottomBar = {
                 // Bottom Status Bar
                 Surface(
                     color = StudioSurface,
                     modifier = Modifier.fillMaxWidth(),
-                    tonalElevation = 4.dp
+                    tonalElevation = 6.dp,
+                    border = BorderStroke(0.5.dp, StudioBorder)
                 ) {
-                    Column {
+                    Column(modifier = Modifier.navigationBarsPadding()) {
                         if (uiState.isBuilding) {
                             LinearProgressIndicator(
                                 progress = { uiState.buildProgress },
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier.fillMaxWidth().height(3.dp),
                                 color = StudioGreen,
                                 trackColor = StudioSurfaceVariant
                             )
@@ -353,30 +431,77 @@ fun StudioWorkspaceScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                                .padding(horizontal = 10.dp, vertical = 5.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
+                            // Left: Gradle & Terminal trigger
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.clickable { viewModel.toggleLogcat(true) }
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .clickable { viewModel.toggleLogcat(true) }
+                                    .padding(horizontal = 4.dp, vertical = 2.dp)
                             ) {
-                                Icon(Icons.Default.Terminal, contentDescription = null, tint = StudioGreen, modifier = Modifier.size(14.dp))
+                                Icon(
+                                    Icons.Default.Terminal,
+                                    contentDescription = null,
+                                    tint = if (uiState.isBuilding) StudioOrange else StudioGreen,
+                                    modifier = Modifier.size(13.dp)
+                                )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = if (uiState.isBuilding) uiState.currentBuildTask else "Gradle: Ready",
-                                    fontSize = 11.sp,
+                                    fontSize = 10.sp,
                                     fontFamily = FontFamily.Monospace,
-                                    color = Color.Gray
+                                    color = if (uiState.isBuilding) StudioOrange else Color.LightGray
                                 )
                             }
 
+                            // Middle: Diagnostics status pills
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Text("UTF-8", fontSize = 10.sp, color = Color.Gray)
-                                Text("Kotlin 2.2", fontSize = 10.sp, color = StudioPurple, fontWeight = FontWeight.Bold)
+                                val errorCount = uiState.realtimeDiagnostics.count { it.errorType.name.contains("ERROR") }
+                                val warnCount = uiState.realtimeDiagnostics.size - errorCount
+
+                                if (errorCount > 0) {
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = StudioRed.copy(alpha = 0.2f),
+                                        modifier = Modifier.clickable { viewModel.setBottomTab(0) }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(Icons.Default.Cancel, contentDescription = null, tint = StudioRed, modifier = Modifier.size(11.dp))
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Text("$errorCount", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = StudioRed)
+                                        }
+                                    }
+                                }
+
+                                if (warnCount > 0) {
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = StudioOrange.copy(alpha = 0.2f),
+                                        modifier = Modifier.clickable { viewModel.setBottomTab(0) }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(Icons.Default.Warning, contentDescription = null, tint = StudioOrange, modifier = Modifier.size(11.dp))
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Text("$warnCount", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = StudioOrange)
+                                        }
+                                    }
+                                }
+
+                                Text("UTF-8", fontSize = 9.sp, color = Color.Gray)
+                                Text("Kotlin 2.2", fontSize = 9.sp, color = StudioPurple, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -555,7 +680,16 @@ fun StudioWorkspaceScreen(
                                     onAddNode = { viewModel.addVisualNode(it) },
                                     onUpdateNode = { viewModel.updateVisualNode(it) },
                                     onDeleteNode = { viewModel.deleteVisualNode(it) },
-                                    onSyncCode = { viewModel.syncVisualToCode() }
+                                    onDuplicateNode = { viewModel.duplicateVisualNode(it) },
+                                    onReorderNode = { from, to -> viewModel.reorderVisualNode(from, to) },
+                                    designerMode = uiState.visualDesignerMode,
+                                    onToggleDesignerMode = { viewModel.setVisualDesignerMode(it) },
+                                    isRealtimeSyncEnabled = uiState.isRealtimeVisualSyncEnabled,
+                                    onToggleRealtimeSync = { viewModel.toggleRealtimeVisualSync(it) },
+                                    onSaveXmlLayout = { viewModel.saveVisualLayoutAsXmlFile(it) },
+                                    onLoadFromActiveXml = { viewModel.loadFromActiveXmlFile() },
+                                    onSyncCode = { viewModel.syncVisualToCode() },
+                                    activeFileName = uiState.activeFile?.name
                                 )
                             }
                             StudioViewMode.SPLIT_VIEW -> {
@@ -585,7 +719,16 @@ fun StudioWorkspaceScreen(
                                             onAddNode = { viewModel.addVisualNode(it) },
                                             onUpdateNode = { viewModel.updateVisualNode(it) },
                                             onDeleteNode = { viewModel.deleteVisualNode(it) },
-                                            onSyncCode = { viewModel.syncVisualToCode() }
+                                            onDuplicateNode = { viewModel.duplicateVisualNode(it) },
+                                            onReorderNode = { from, to -> viewModel.reorderVisualNode(from, to) },
+                                            designerMode = uiState.visualDesignerMode,
+                                            onToggleDesignerMode = { viewModel.setVisualDesignerMode(it) },
+                                            isRealtimeSyncEnabled = uiState.isRealtimeVisualSyncEnabled,
+                                            onToggleRealtimeSync = { viewModel.toggleRealtimeVisualSync(it) },
+                                            onSaveXmlLayout = { viewModel.saveVisualLayoutAsXmlFile(it) },
+                                            onLoadFromActiveXml = { viewModel.loadFromActiveXmlFile() },
+                                            onSyncCode = { viewModel.syncVisualToCode() },
+                                            activeFileName = uiState.activeFile?.name
                                         )
                                     }
                                 }
@@ -628,7 +771,7 @@ fun StudioWorkspaceScreen(
         onSaveApiKey = { viewModel.setGeminiApiKey(it) }
     )
 
-    // Logcat & Terminal Sheet
+    // Logcat & Developer Tools Sheet
     LogcatTerminalSheet(
         isOpen = uiState.isLogcatOpen,
         selectedTab = uiState.selectedBottomTab,
@@ -642,6 +785,8 @@ fun StudioWorkspaceScreen(
         allProjects = uiState.projects,
         currentFiles = uiState.files,
         gitHubToken = uiState.gitHubToken,
+        activeFile = uiState.activeFile,
+        editorContent = uiState.editorContent,
         onTabChange = { viewModel.setBottomTab(it) },
         onFilterChange = { viewModel.setLogcatFilter(it) },
         onClearLogs = { viewModel.clearLogcat() },
@@ -655,6 +800,27 @@ fun StudioWorkspaceScreen(
         },
         onAutoHealProject = {
             viewModel.autoHealProjectAndRun()
+        },
+        onSaveVectorAsset = { name, xml ->
+            viewModel.saveVectorDrawable(name, xml)
+        },
+        onApplyDependencyUpgrade = { dep ->
+            viewModel.applyDependencyUpgrade(dep.artifact, dep.latestVersion)
+        },
+        onUpgradeAllDependencies = {
+            viewModel.applyDependencyUpgrade("libs.versions.toml", "latest")
+        },
+        onTriggerGc = {
+            viewModel.triggerGarbageCollection()
+        },
+        onAcceptAllDiffIncoming = {
+            uiState.activeFile?.let { viewModel.replaceEditorWithCode(it.content) }
+        },
+        onAcceptAllDiffCurrent = {
+            viewModel.saveActiveFile()
+        },
+        onLogNetworkEvent = { tag, level, msg ->
+            viewModel.addLogcat(tag, level, msg)
         },
         onDismiss = { viewModel.toggleLogcat(false) }
     )
@@ -719,6 +885,8 @@ fun StudioWorkspaceScreen(
         isOpen = uiState.isGitHubSyncDialogOpen,
         project = uiState.currentProject,
         activeFile = uiState.activeFile,
+        currentFiles = uiState.files,
+        editorContent = uiState.editorContent,
         isModified = uiState.isModified,
         token = uiState.gitHubToken,
         commitMessage = uiState.gitCommitMessage,
@@ -732,6 +900,12 @@ fun StudioWorkspaceScreen(
         onConfigureToken = {
             viewModel.toggleGitHubSyncDialog(false)
             viewModel.toggleGitHubImportDialog(true)
+        },
+        onRevertToHead = { file ->
+            viewModel.replaceEditorWithCode(file.content)
+        },
+        onKeepWorkingCopy = {
+            viewModel.saveActiveFile()
         }
     )
 }

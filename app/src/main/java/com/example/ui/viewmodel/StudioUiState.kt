@@ -160,6 +160,8 @@ data class StudioUiState(
     val aiMessages: List<AiChatMessage> = emptyList(),
     val visualNodes: List<VisualUiNode> = emptyList(),
     val selectedVisualNodeId: String? = null,
+    val visualDesignerMode: String = "XML", // "XML" or "COMPOSE"
+    val isRealtimeVisualSyncEnabled: Boolean = true,
     val isLogcatOpen: Boolean = false,
     val selectedBottomTab: Int = 0, // 0: Build & Errors, 1: Logcat, 2: Terminal
     val logcatFilter: String = "ALL",
