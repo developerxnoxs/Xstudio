@@ -401,6 +401,58 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
             )
         }
 
+        res.fileAction?.let { action ->
+            val currentProj = _uiState.value.currentProject
+            if (currentProj != null) {
+                viewModelScope.launch {
+                    val allFiles = _uiState.value.files
+                    val existing = allFiles.find { it.path == action.path || it.name == action.fileName }
+                    when (action.action) {
+                        "CREATE" -> {
+                            if (existing == null) {
+                                val parent = if (action.path.contains('/')) action.path.substringBeforeLast('/') else "app/src/main/java"
+                                fileManager.createFile(
+                                    projectId = currentProj.id,
+                                    parentPath = parent,
+                                    fileName = action.fileName,
+                                    fileType = action.fileType,
+                                    initialContent = action.content
+                                )
+                                addLogcat("Terminal", "I", "Created ${action.path}")
+                            }
+                        }
+                        "UPDATE" -> {
+                            if (existing != null) {
+                                val updated = existing.copy(content = action.content)
+                                repository.updateFile(updated)
+                                if (_uiState.value.activeFile?.id == existing.id) {
+                                    updateEditorContent(action.content)
+                                }
+                                addLogcat("Terminal", "I", "Updated ${action.path}")
+                            } else {
+                                val parent = if (action.path.contains('/')) action.path.substringBeforeLast('/') else "app/src/main/java"
+                                fileManager.createFile(
+                                    projectId = currentProj.id,
+                                    parentPath = parent,
+                                    fileName = action.fileName,
+                                    fileType = action.fileType,
+                                    initialContent = action.content
+                                )
+                                addLogcat("Terminal", "I", "Created & updated ${action.path}")
+                            }
+                        }
+                        "DELETE" -> {
+                            if (existing != null) {
+                                fileManager.deleteFileOrDirectory(existing, allFiles)
+                                closeTab(existing)
+                                addLogcat("Terminal", "I", "Deleted ${action.path}")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         if (res.triggerBuild) {
             runBuildAndRun()
         } else if (res.triggerInstallToVirtualDevice) {
@@ -1966,5 +2018,72 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
             it.copy(infoSnackbarMessage = "✓ Garbage Collection invoked: Memory Heap freed")
         }
     }
+
+    fun explainActiveFileWithAi() {
+        val active = _uiState.value.activeFile ?: return
+        val currentProj = _uiState.value.currentProject
+        _uiState.update { it.copy(isAiSheetOpen = true, isAiThinking = true) }
+        viewModelScope.launch {
+            val explanation = GeminiAiService.explainCode(
+                code = active.content,
+                fileName = active.name,
+                customApiKey = _uiState.value.geminiApiKey
+            )
+            val aiMsg = AiChatMessage(
+                id = UUID.randomUUID().toString(),
+                isUser = false,
+                message = explanation
+            )
+            _uiState.update {
+                it.copy(
+                    isAiThinking = false,
+                    aiMessages = it.aiMessages + aiMsg
+                )
+            }
+            addLogcat("StudioBot", "I", "Generated architectural explanation for ${active.name}")
+        }
+    }
+
+    fun refactorActiveFileWithAi() {
+        val active = _uiState.value.activeFile ?: return
+        val prompt = "Refactor ${active.name} to strict Clean Architecture, standard Material Design 3, and optimized Jetpack Compose state hoisting."
+        sendAiPrompt(prompt)
+    }
+
+    fun generateUnitTestsForActiveFile() {
+        val active = _uiState.value.activeFile ?: return
+        val currentProj = _uiState.value.currentProject ?: return
+        _uiState.update { it.copy(isAiSheetOpen = true, isAiThinking = true) }
+        viewModelScope.launch {
+            val result = GeminiAiService.generateUnitTests(
+                code = active.content,
+                fileName = active.name,
+                packageName = currentProj.packageName,
+                customApiKey = _uiState.value.geminiApiKey
+            )
+            val aiMsg = AiChatMessage(
+                id = UUID.randomUUID().toString(),
+                isUser = false,
+                message = result.explanation,
+                extractedCode = result.extractedCode,
+                fileOperations = result.fileOperations
+            )
+            _uiState.update {
+                it.copy(
+                    isAiThinking = false,
+                    aiMessages = it.aiMessages + aiMsg
+                )
+            }
+            addLogcat("StudioBot", "I", "Generated unit test suite for ${active.name}")
+        }
+    }
+
+    fun testGeminiApiKey(apiKey: String, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            val (success, message) = GeminiAiService.testApiKeyConnection(apiKey)
+            onResult(success, message)
+        }
+    }
 }
+
 

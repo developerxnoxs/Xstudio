@@ -35,6 +35,7 @@ import com.example.ui.viewmodel.AiChatMessage
 import com.example.ui.viewmodel.AiFileOperation
 import com.example.ui.viewmodel.AiOperationType
 import com.example.ui.viewmodel.RefinedPlanSuggestion
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,20 +79,24 @@ fun AiAssistantSheet(
     var apiKeyInput by remember(geminiApiKey) { mutableStateOf(geminiApiKey ?: "") }
 
     val autonomousPresets = listOf(
+        "🧮 Bangun Aplikasi Kalkulator Lengkap Material 3",
+        "⏱️ Bangun Aplikasi Stopwatch & Lap Tracker",
+        "📝 Buat Todo List Lengkap dengan Filter & Animasi Jetpack Compose",
         "🏗️ Bangun Full App Catatan Keuangan (Model, Room DAO, UI & Chart)",
         "🛠️ Auto-Heal & Perbaiki Semua Error Proyek lalu Jalankan",
-        "📝 Buat Todo List Lengkap dengan Filter & Animasi Jetpack Compose",
         "🎨 Refactor & Modernisasi seluruh layar ke Material Design 3",
         "⚡ Tambahkan Dark Theme Switcher & Visual Navigation State"
     )
 
     val quickPrompts = listOf(
+        "📖 Jelaskan Arsitektur File Aktif",
+        "✨ Refactor ke Clean Architecture",
+        "🧪 Buat Robolectric Unit Test",
+        "🧮 Buat Aplikasi Kalkulator Material 3",
+        "⏱️ Buat Aplikasi Stopwatch Presisi",
+        "📝 Scaffold Todo List (3 Files: Model, UI, Main)",
         "🛠️ Auto-Heal Project Errors & Build",
-        "🏗️ Scaffold Todo List (3 Files: Model, UI, Main)",
-        "📝 Scaffold Smart Notes (Staggered Grid)",
-        "✨ Clean Architecture & ViewModel Pattern",
-        "🎨 Modernize UI with Material 3 Theme",
-        "⚡ Fix state recomposition & add missing imports"
+        "🎨 Modernize UI with Material 3 Theme"
     )
 
     ModalBottomSheet(
@@ -450,6 +455,11 @@ fun AiAssistantSheet(
         }
     }
 
+    var isTestingKey by remember { mutableStateOf(false) }
+    var testResultText by remember { mutableStateOf<String?>(null) }
+    var isTestSuccessful by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+
     // API Key Dialog
     if (showApiKeyDialog) {
         AlertDialog(
@@ -458,23 +468,87 @@ fun AiAssistantSheet(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Key, contentDescription = null, tint = StudioGreen)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Gemini API Key Settings")
+                    Text("Gemini AI API Key")
                 }
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        "Enter your custom Google Gemini API Key to enable online gemini-3.5-flash AI code generation across multi-file projects. If blank, high-fidelity local on-device project intelligence is used automatically.",
+                        "Masukkan Google Gemini API Key Anda untuk mengaktifkan Agent AI Autonomous resmi (gemini-3.5-flash / gemini-3.1-pro). Agent akan menulis kode Android lengkap dari nol sampai selesai, mengelola Room DB, Jetpack Compose UI, serta melakukan Self-Healing otomatis.",
                         fontSize = 12.sp,
                         color = Color.LightGray
                     )
                     OutlinedTextField(
                         value = apiKeyInput,
-                        onValueChange = { apiKeyInput = it },
+                        onValueChange = {
+                            apiKeyInput = it
+                            testResultText = null
+                        },
                         placeholder = { Text("AIzaSy...") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                if (apiKeyInput.isNotBlank()) {
+                                    isTestingKey = true
+                                    testResultText = null
+                                    coroutineScope.launch {
+                                        val (success, msg) = com.example.data.ai.GeminiAiService.testApiKeyConnection(apiKeyInput)
+                                        isTestingKey = false
+                                        isTestSuccessful = success
+                                        testResultText = msg
+                                    }
+                                } else {
+                                    testResultText = "Masukkan API Key terlebih dahulu"
+                                    isTestSuccessful = false
+                                }
+                            },
+                            enabled = !isTestingKey
+                        ) {
+                            if (isTestingKey) {
+                                CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Testing...", fontSize = 11.sp)
+                            } else {
+                                Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Test Connection", fontSize = 11.sp)
+                            }
+                        }
+
+                        if (!geminiApiKey.isNullOrBlank()) {
+                            TextButton(onClick = {
+                                apiKeyInput = ""
+                                onSaveApiKey("")
+                                testResultText = "Key berhasil dihapus"
+                                isTestSuccessful = true
+                            }) {
+                                Text("Clear Key", fontSize = 11.sp, color = Color.Gray)
+                            }
+                        }
+                    }
+
+                    if (testResultText != null) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (isTestSuccessful) StudioGreen.copy(alpha = 0.15f) else Color(0xFFFF5252).copy(alpha = 0.15f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = testResultText ?: "",
+                                fontSize = 11.sp,
+                                color = if (isTestSuccessful) StudioGreen else Color(0xFFFF5252),
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
+                    }
                 }
             },
             confirmButton = {
