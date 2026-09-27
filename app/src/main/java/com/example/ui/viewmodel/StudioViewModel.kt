@@ -33,6 +33,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.example.analyzer.ApkAnalyzerEngine
+import com.example.signing.KeystoreSignerEngine
+import com.example.signing.KeystoreDetails
+import com.example.ui.components.MavenLibraryDef
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.BufferedReader
+import java.io.InputStreamReader
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -1757,6 +1765,10 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun highlightLine(line: Int?) {
+        _uiState.update { it.copy(highlightedErrorLine = line) }
+    }
+
     fun askAiFixForDiagnostic(diagnostic: BuildDiagnostic) {
         toggleAiSheet(true)
         val prompt = "How do I fix this build error in ${diagnostic.fileName} at line ${diagnostic.line}?\n\nError: ${diagnostic.message}\n${if (diagnostic.codeSnippet != null) "Snippet:\n${diagnostic.codeSnippet}" else ""}\n\nPlease provide the corrected code."
@@ -2082,6 +2094,302 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             val (success, message) = GeminiAiService.testApiKeyConnection(apiKey)
             onResult(success, message)
+        }
+    }
+
+    // 1. APK Analyzer
+    fun toggleApkAnalyzer(open: Boolean) {
+        _uiState.update { it.copy(isApkAnalyzerOpen = open) }
+        if (open && _uiState.value.apkAnalysisReport == null) {
+            analyzeCurrentApk()
+        }
+    }
+
+    fun analyzeCurrentApk() {
+        val proj = _uiState.value.currentProject ?: return
+        val files = _uiState.value.files
+        viewModelScope.launch {
+            _uiState.update { it.copy(isAnalyzingApk = true) }
+            val report = withContext(Dispatchers.IO) {
+                ApkAnalyzerEngine.analyzeProjectApk(getApplication(), proj, files)
+            }
+            _uiState.update { it.copy(isAnalyzingApk = false, apkAnalysisReport = report) }
+            addLogcat("ApkAnalyzer", "I", "Analisis APK selesai untuk ${proj.name} (${report.formattedTotalSize})")
+        }
+    }
+
+    // 2. Global Find & Replace
+    fun toggleGlobalSearch(open: Boolean) {
+        _uiState.update { it.copy(isGlobalSearchOpen = open) }
+    }
+
+    fun replaceAllInProject(query: String, replaceText: String, isRegex: Boolean, isCaseSensitive: Boolean) {
+        if (query.isBlank()) return
+        val currentFiles = _uiState.value.files
+        var modifiedFilesCount = 0
+
+        viewModelScope.launch {
+            val pattern = try {
+                if (isRegex) {
+                    if (isCaseSensitive) Regex(query) else Regex(query, RegexOption.IGNORE_CASE)
+                } else null
+            } catch (e: Exception) {
+                null
+            }
+
+            for (file in currentFiles) {
+                if (file.isDirectory) continue
+                val originalContent = file.content
+                val newContent = if (pattern != null) {
+                    originalContent.replace(pattern, replaceText)
+                } else {
+                    originalContent.replace(query, replaceText, ignoreCase = !isCaseSensitive)
+                }
+
+                if (newContent != originalContent) {
+                    repository.updateFile(file.copy(content = newContent))
+                    modifiedFilesCount++
+                    if (_uiState.value.activeFile?.id == file.id) {
+                        _uiState.update { it.copy(editorContent = newContent, isModified = false) }
+                    }
+                }
+            }
+
+            _uiState.update {
+                it.copy(infoSnackbarMessage = "Berhasil mengganti teks pada $modifiedFilesCount file proyek.")
+            }
+            addLogcat("GlobalSearch", "I", "Replace all '$query' -> '$replaceText' pada $modifiedFilesCount file")
+        }
+    }
+
+    // 3. String Localization Manager
+    fun toggleStringManager(open: Boolean) {
+        _uiState.update { it.copy(isStringManagerOpen = open) }
+    }
+
+    fun saveStringTranslations(defaultXml: String, idXml: String, enXml: String) {
+        val proj = _uiState.value.currentProject ?: return
+        val currentFiles = _uiState.value.files
+
+        viewModelScope.launch {
+            val defaultFile = currentFiles.find { it.path == "app/src/main/res/values/strings.xml" }
+            if (defaultFile != null) {
+                repository.updateFile(defaultFile.copy(content = defaultXml))
+            } else {
+                fileManager.createFile(proj.id, "app/src/main/res/values", "strings.xml", "XML", defaultXml)
+            }
+
+            val idFile = currentFiles.find { it.path == "app/src/main/res/values-id/strings.xml" }
+            if (idFile != null) {
+                repository.updateFile(idFile.copy(content = idXml))
+            } else {
+                fileManager.createFile(proj.id, "app/src/main/res/values-id", "strings.xml", "XML", idXml)
+            }
+
+            val enFile = currentFiles.find { it.path == "app/src/main/res/values-en/strings.xml" }
+            if (enFile != null) {
+                repository.updateFile(enFile.copy(content = enXml))
+            } else {
+                fileManager.createFile(proj.id, "app/src/main/res/values-en", "strings.xml", "XML", enXml)
+            }
+
+            _uiState.update {
+                it.copy(infoSnackbarMessage = "File strings.xml (Default, ID, EN) berhasil disimpan!")
+            }
+            addLogcat("Localization", "I", "String localization XML files updated successfully.")
+        }
+    }
+
+    // 4. Maven Library Catalog & Adder
+    fun toggleDependencyCatalog(open: Boolean) {
+        _uiState.update { it.copy(isDependencyCatalogOpen = open) }
+    }
+
+    fun addLibraryToGradle(lib: MavenLibraryDef) {
+        val currentFiles = _uiState.value.files
+        val gradleFile = currentFiles.find { it.name == "build.gradle.kts" && it.path.contains("app") }
+            ?: currentFiles.find { it.name == "build.gradle.kts" }
+
+        if (gradleFile == null) {
+            _uiState.update { it.copy(infoSnackbarMessage = "build.gradle.kts tidak ditemukan di proyek.") }
+            return
+        }
+
+        val originalContent = gradleFile.content
+        if (originalContent.contains(lib.artifact)) {
+            _uiState.update { it.copy(infoSnackbarMessage = "Library ${lib.name} sudah ada di build.gradle.kts") }
+            return
+        }
+
+        val targetDepBlock = "dependencies {"
+        val newContent = if (originalContent.contains(targetDepBlock)) {
+            originalContent.replace(targetDepBlock, "$targetDepBlock\n    ${lib.gradleImplementation}")
+        } else {
+            originalContent + "\n\ndependencies {\n    ${lib.gradleImplementation}\n}\n"
+        }
+
+        viewModelScope.launch {
+            repository.updateFile(gradleFile.copy(content = newContent))
+            if (_uiState.value.activeFile?.id == gradleFile.id) {
+                _uiState.update { it.copy(editorContent = newContent) }
+            }
+            _uiState.update {
+                it.copy(infoSnackbarMessage = "Berhasil menambahkan ${lib.name} ke build.gradle.kts!")
+            }
+            addLogcat("Gradle", "I", "Added dependency: ${lib.coordinate}")
+        }
+    }
+
+    // 5. Compose Boilerplate Generator
+    fun toggleSnippetGenerator(open: Boolean) {
+        _uiState.update { it.copy(isSnippetGeneratorOpen = open) }
+    }
+
+    fun insertSnippetToActiveFile(code: String) {
+        val currentContent = _uiState.value.editorContent
+        val updated = if (currentContent.isBlank()) code else "$currentContent\n\n$code\n"
+        updateEditorContent(updated)
+        saveActiveFile()
+        _uiState.update { it.copy(infoSnackbarMessage = "Boilerplate berhasil disisipkan ke file aktif!") }
+    }
+
+    fun createSnippetAsNewFile(fileName: String, code: String) {
+        val proj = _uiState.value.currentProject ?: return
+        viewModelScope.launch {
+            val newFile = fileManager.createFile(
+                projectId = proj.id,
+                parentPath = "app/src/main/java/com/example",
+                fileName = fileName,
+                fileType = "KOTLIN",
+                initialContent = code
+            )
+            openFile(newFile)
+            _uiState.update { it.copy(infoSnackbarMessage = "File $fileName berhasil dibuat dan dibuka!") }
+            addLogcat("CodeGen", "I", "Created component template file: $fileName")
+        }
+    }
+
+    // 6. Keystore Generator & Signer
+    fun toggleKeystoreSigner(open: Boolean) {
+        _uiState.update { it.copy(isKeystoreSignerOpen = open) }
+    }
+
+    fun generateKeystoreAndSignApk(alias: String, password: String, devName: String, org: String, validity: Int) {
+        val proj = _uiState.value.currentProject ?: return
+        val files = _uiState.value.files
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSigningApk = true) }
+            val (keystoreDetails, signResult) = withContext(Dispatchers.IO) {
+                val keystore = KeystoreSignerEngine.generateKeystore(
+                    context = getApplication(),
+                    alias = alias,
+                    storePassword = password,
+                    keyPassword = password,
+                    commonName = devName,
+                    organization = org,
+                    validityYears = validity
+                )
+                val result = KeystoreSignerEngine.signProjectApk(
+                    context = getApplication(),
+                    project = proj,
+                    files = files,
+                    keystore = keystore,
+                    keyPassword = password
+                )
+                Pair(keystore, result)
+            }
+
+            _uiState.update {
+                it.copy(
+                    isSigningApk = false,
+                    savedKeystoreDetails = keystoreDetails,
+                    signedApkResult = signResult,
+                    infoSnackbarMessage = if (signResult.isSuccess) "APK Rilis berhasil ditandatangani!" else "Gagal menandatangani APK"
+                )
+            }
+            if (signResult.isSuccess) {
+                addLogcat("ApkSigner", "I", "APK successfully signed with alias '$alias' (${signResult.formattedSize})")
+            } else {
+                addLogcat("ApkSigner", "E", "APK signing error: ${signResult.errorMessage}")
+            }
+        }
+    }
+
+    // 7. Enhanced Logcat: Real-time Device Logcat Capture & Export
+    fun captureDeviceLogcat() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val capturedLogs = mutableListOf<LogcatEntry>()
+            val timeFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
+            try {
+                val process = Runtime.getRuntime().exec(arrayOf("logcat", "-d", "-v", "time", "-t", "80"))
+                val reader = BufferedReader(InputStreamReader(process.inputStream))
+                var line = reader.readLine()
+                while (line != null) {
+                    if (line.isNotBlank()) {
+                        val level = when {
+                            line.contains(" E ") || line.startsWith("E/") -> "E"
+                            line.contains(" W ") || line.startsWith("W/") -> "W"
+                            line.contains(" I ") || line.startsWith("I/") -> "I"
+                            line.contains(" D ") || line.startsWith("D/") -> "D"
+                            else -> "V"
+                        }
+                        val tag = if (line.contains(":")) line.substringBefore(':').takeLast(25).trim() else "System"
+                        val msg = if (line.contains(":")) line.substringAfter(':').trim() else line.trim()
+                        capturedLogs.add(
+                            LogcatEntry(
+                                id = UUID.randomUUID().toString(),
+                                tag = tag,
+                                level = level,
+                                message = msg,
+                                timestamp = timeFormat.format(Date())
+                            )
+                        )
+                    }
+                    line = reader.readLine()
+                }
+                reader.close()
+                process.waitFor()
+            } catch (e: Exception) {
+                capturedLogs.add(
+                    LogcatEntry(
+                        id = UUID.randomUUID().toString(),
+                        tag = "LogcatEngine",
+                        level = "I",
+                        message = "Device logcat reader capture active (fallback mode): ${e.message}",
+                        timestamp = timeFormat.format(Date())
+                    )
+                )
+            }
+
+            if (capturedLogs.isNotEmpty()) {
+                _uiState.update { it.copy(logcatEntries = it.logcatEntries + capturedLogs) }
+            }
+        }
+    }
+
+    fun exportLogcatToFile() {
+        val proj = _uiState.value.currentProject ?: return
+        val currentLogs = _uiState.value.logcatEntries
+        val sb = StringBuilder()
+        sb.append("=== ANDROID STUDIO MOBILE LOGCAT EXPORT ===\n")
+        sb.append("Project: ${proj.name} (${proj.packageName})\n")
+        sb.append("Export Time: ${Date()}\n")
+        sb.append("Total Entries: ${currentLogs.size}\n\n")
+        currentLogs.forEach { entry ->
+            sb.append("[${entry.timestamp}] [${entry.level}] ${entry.tag}: ${entry.message}\n")
+        }
+
+        val exportFileName = "logcat_${System.currentTimeMillis() % 100000}.log"
+        viewModelScope.launch {
+            fileManager.createFile(
+                projectId = proj.id,
+                parentPath = "app",
+                fileName = exportFileName,
+                fileType = "LOG",
+                initialContent = sb.toString()
+            )
+            _uiState.update { it.copy(infoSnackbarMessage = "Logcat diekspor ke app/$exportFileName") }
+            addLogcat("Logcat", "I", "Exported logcat to app/$exportFileName")
         }
     }
 }

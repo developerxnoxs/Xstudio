@@ -201,5 +201,17 @@ data class StudioUiState(
     val savedTaskPlans: List<AgentTaskPlanEntity> = emptyList(),
     val selectedTaskPlanSubTasks: List<AgentSubTaskEntity> = emptyList(),
     val selectedPlanIdForDetails: String? = null,
-    val infoSnackbarMessage: String? = null
+    val infoSnackbarMessage: String? = null,
+    // New Feature States
+    val isApkAnalyzerOpen: Boolean = false,
+    val apkAnalysisReport: com.example.analyzer.ApkAnalysisReport? = null,
+    val isAnalyzingApk: Boolean = false,
+    val isGlobalSearchOpen: Boolean = false,
+    val isStringManagerOpen: Boolean = false,
+    val isDependencyCatalogOpen: Boolean = false,
+    val isSnippetGeneratorOpen: Boolean = false,
+    val isKeystoreSignerOpen: Boolean = false,
+    val signedApkResult: com.example.signing.SignedApkResult? = null,
+    val isSigningApk: Boolean = false,
+    val savedKeystoreDetails: com.example.signing.KeystoreDetails? = null
 )

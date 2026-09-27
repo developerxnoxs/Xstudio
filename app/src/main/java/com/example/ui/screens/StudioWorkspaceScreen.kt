@@ -281,7 +281,60 @@ fun StudioWorkspaceScreen(
                                         )
                                         HorizontalDivider()
                                         DropdownMenuItem(
-                                            text = { Text("Find & Replace") },
+                                            text = { Text("Global Find & Replace (Project)") },
+                                            leadingIcon = { Icon(Icons.Default.FindInPage, contentDescription = null, tint = StudioGreen) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                viewModel.toggleGlobalSearch(true)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Compose Boilerplate Generator") },
+                                            leadingIcon = { Icon(Icons.Default.Widgets, contentDescription = null, tint = StudioCyan) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                viewModel.toggleSnippetGenerator(true)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("APK Analyzer & Package Breakdown") },
+                                            leadingIcon = { Icon(Icons.Default.Analytics, contentDescription = null, tint = StudioOrange) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                viewModel.setBottomTab(9)
+                                                viewModel.toggleLogcat(true)
+                                                viewModel.analyzeCurrentApk()
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("String & Localization Manager") },
+                                            leadingIcon = { Icon(Icons.Default.Translate, contentDescription = null, tint = StudioGreen) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                viewModel.setBottomTab(10)
+                                                viewModel.toggleLogcat(true)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Maven Library Search & Adder") },
+                                            leadingIcon = { Icon(Icons.Default.LibraryBooks, contentDescription = null, tint = StudioCyan) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                viewModel.setBottomTab(11)
+                                                viewModel.toggleLogcat(true)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Keystore Generator & App Signer") },
+                                            leadingIcon = { Icon(Icons.Default.VpnKey, contentDescription = null, tint = StudioGreen) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                viewModel.toggleKeystoreSigner(true)
+                                            }
+                                        )
+                                        HorizontalDivider()
+                                        DropdownMenuItem(
+                                            text = { Text("Find & Replace (Active File)") },
                                             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                                             onClick = {
                                                 showOverflowMenu = false
@@ -822,7 +875,52 @@ fun StudioWorkspaceScreen(
         onLogNetworkEvent = { tag, level, msg ->
             viewModel.addLogcat(tag, level, msg)
         },
+        apkReport = uiState.apkAnalysisReport,
+        isAnalyzingApk = uiState.isAnalyzingApk,
+        onRefreshApkAnalysis = { viewModel.analyzeCurrentApk() },
+        onSaveStringTranslations = { def, id, en -> viewModel.saveStringTranslations(def, id, en) },
+        onAddMavenLibrary = { lib -> viewModel.addLibraryToGradle(lib) },
+        onCaptureDeviceLogs = { viewModel.captureDeviceLogcat() },
+        onExportLogs = { viewModel.exportLogcatToFile() },
         onDismiss = { viewModel.toggleLogcat(false) }
+    )
+
+    // Global Find & Replace Dialog
+    GlobalSearchDialog(
+        isOpen = uiState.isGlobalSearchOpen,
+        files = uiState.files,
+        onOpenFileAtLine = { file, line ->
+            viewModel.openFile(file)
+            viewModel.highlightLine(line)
+        },
+        onReplaceAllInProject = { query, replace, isRegex, isCaseSensitive ->
+            viewModel.replaceAllInProject(query, replace, isRegex, isCaseSensitive)
+        },
+        onDismiss = { viewModel.toggleGlobalSearch(false) }
+    )
+
+    // Compose & Architecture Boilerplate Generator Dialog
+    ComposeSnippetGeneratorDialog(
+        isOpen = uiState.isSnippetGeneratorOpen,
+        defaultPackageName = uiState.currentProject?.packageName ?: "com.example.app",
+        onInsertToActiveFile = { viewModel.insertSnippetToActiveFile(it) },
+        onCreateAsNewFile = { fileName, code -> viewModel.createSnippetAsNewFile(fileName, code) },
+        onDismiss = { viewModel.toggleSnippetGenerator(false) }
+    )
+
+    // Keystore Generator & APK Signer Dialog
+    KeystoreSignerDialog(
+        isOpen = uiState.isKeystoreSignerOpen,
+        currentProject = uiState.currentProject,
+        isSigning = uiState.isSigningApk,
+        signedResult = uiState.signedApkResult,
+        onGenerateKeystoreAndSign = { alias, password, devName, org, validity ->
+            viewModel.generateKeystoreAndSignApk(alias, password, devName, org, validity)
+        },
+        onInstallSignedApk = { _ ->
+            viewModel.installAppToVirtualDevice()
+        },
+        onDismiss = { viewModel.toggleKeystoreSigner(false) }
     )
 
     // New Project Dialog

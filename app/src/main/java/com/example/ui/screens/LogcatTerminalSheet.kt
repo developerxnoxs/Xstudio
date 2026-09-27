@@ -38,6 +38,10 @@ import com.example.ui.components.GitVisualDiffView
 import com.example.ui.components.NetworkInspectorView
 import com.example.ui.components.PerformanceProfilerView
 import com.example.ui.components.VectorAssetStudioView
+import com.example.ui.components.ApkAnalyzerView
+import com.example.ui.components.StringLocalizationView
+import com.example.ui.components.MavenDependencyCatalogView
+import com.example.ui.components.MavenLibraryDef
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.LogcatEntry
 
@@ -58,6 +62,8 @@ fun LogcatTerminalSheet(
     gitHubToken: String? = null,
     activeFile: ProjectFileEntity? = null,
     editorContent: String = "",
+    apkReport: com.example.analyzer.ApkAnalysisReport? = null,
+    isAnalyzingApk: Boolean = false,
     onTabChange: (Int) -> Unit,
     onFilterChange: (String) -> Unit,
     onClearLogs: () -> Unit,
@@ -73,6 +79,11 @@ fun LogcatTerminalSheet(
     onAcceptAllDiffIncoming: () -> Unit = {},
     onAcceptAllDiffCurrent: () -> Unit = {},
     onLogNetworkEvent: (String, String, String) -> Unit = { _, _, _ -> },
+    onRefreshApkAnalysis: () -> Unit = {},
+    onSaveStringTranslations: (String, String, String) -> Unit = { _, _, _ -> },
+    onAddMavenLibrary: (MavenLibraryDef) -> Unit = {},
+    onCaptureDeviceLogs: () -> Unit = {},
+    onExportLogs: () -> Unit = {},
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -211,6 +222,39 @@ fun LogcatTerminalSheet(
                                 Icon(Icons.Default.Difference, contentDescription = null, tint = StudioGreen, modifier = Modifier.size(13.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text("Git Diff", fontSize = 12.sp, fontWeight = if (selectedTab == 8) FontWeight.Bold else FontWeight.Normal)
+                            }
+                        }
+                    )
+                    Tab(
+                        selected = selectedTab == 9,
+                        onClick = { onTabChange(9) },
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Analytics, contentDescription = null, tint = StudioOrange, modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("APK Analyzer", fontSize = 12.sp, fontWeight = if (selectedTab == 9) FontWeight.Bold else FontWeight.Normal)
+                            }
+                        }
+                    )
+                    Tab(
+                        selected = selectedTab == 10,
+                        onClick = { onTabChange(10) },
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Translate, contentDescription = null, tint = StudioGreen, modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Localization", fontSize = 12.sp, fontWeight = if (selectedTab == 10) FontWeight.Bold else FontWeight.Normal)
+                            }
+                        }
+                    )
+                    Tab(
+                        selected = selectedTab == 11,
+                        onClick = { onTabChange(11) },
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.LibraryBooks, contentDescription = null, tint = StudioCyan, modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Maven Library", fontSize = 12.sp, fontWeight = if (selectedTab == 11) FontWeight.Bold else FontWeight.Normal)
                             }
                         }
                     )
@@ -477,25 +521,108 @@ fun LogcatTerminalSheet(
                 }
 
                 1 -> {
-                    // Logcat Stream
+                    // Enhanced Logcat Stream with Filter, Tag, Capture & Export
+                    var tagFilter by remember { mutableStateOf("") }
+                    var searchLogQuery by remember { mutableStateOf("") }
+
+                    val activeFilteredLogs = remember(filteredLogs, tagFilter, searchLogQuery) {
+                        filteredLogs.filter { log ->
+                            val matchTag = tagFilter.isBlank() || log.tag.contains(tagFilter, ignoreCase = true)
+                            val matchQuery = searchLogQuery.isBlank() || log.message.contains(searchLogQuery, ignoreCase = true)
+                            matchTag && matchQuery
+                        }
+                    }
+
                     Column(modifier = Modifier.weight(1f)) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 8.dp),
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                items(listOf("ALL", "V", "D", "I", "W", "E")) { level ->
+                                    FilterChip(
+                                        selected = filter == level,
+                                        onClick = { onFilterChange(level) },
+                                        label = { Text(if (level == "ALL") "All" else level, fontSize = 10.sp, fontWeight = FontWeight.Bold) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = when (level) {
+                                                "E" -> StudioRed.copy(alpha = 0.2f)
+                                                "W" -> StudioOrange.copy(alpha = 0.2f)
+                                                "I" -> StudioGreen.copy(alpha = 0.2f)
+                                                "D" -> StudioCyan.copy(alpha = 0.2f)
+                                                else -> StudioSurfaceVariant
+                                            },
+                                            selectedLabelColor = when (level) {
+                                                "E" -> StudioRed
+                                                "W" -> StudioOrange
+                                                "I" -> StudioGreen
+                                                "D" -> StudioCyan
+                                                else -> Color.White
+                                            }
+                                        )
+                                    )
+                                }
+                            }
+
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                FilledTonalButton(
+                                    onClick = onCaptureDeviceLogs,
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                    colors = ButtonDefaults.filledTonalButtonColors(containerColor = StudioGreen.copy(alpha = 0.15f))
+                                ) {
+                                    Icon(Icons.Default.Download, contentDescription = null, tint = StudioGreen, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Capture", color = StudioGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                                FilledTonalButton(
+                                    onClick = onExportLogs,
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                    colors = ButtonDefaults.filledTonalButtonColors(containerColor = StudioCyan.copy(alpha = 0.15f))
+                                ) {
+                                    Icon(Icons.Default.Share, contentDescription = null, tint = StudioCyan, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Export", color = StudioCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+
+                        // Tag & Search Inputs
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 6.dp),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            listOf("ALL", "V", "D", "I", "W", "E").forEach { level ->
-                                FilterChip(
-                                    selected = filter == level,
-                                    onClick = { onFilterChange(level) },
-                                    label = { Text(if (level == "ALL") "All" else "Level $level", fontSize = 11.sp) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = StudioGreen.copy(alpha = 0.2f),
-                                        selectedLabelColor = StudioGreen
-                                    )
+                            OutlinedTextField(
+                                value = tagFilter,
+                                onValueChange = { tagFilter = it },
+                                placeholder = { Text("Filter Tag...", fontSize = 10.sp, color = Color.Gray) },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f),
+                                textStyle = TextStyle(fontSize = 11.sp, color = Color.White),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = StudioGreen,
+                                    unfocusedBorderColor = StudioBorder
                                 )
-                            }
+                            )
+                            OutlinedTextField(
+                                value = searchLogQuery,
+                                onValueChange = { searchLogQuery = it },
+                                placeholder = { Text("Cari pesan log...", fontSize = 10.sp, color = Color.Gray) },
+                                singleLine = true,
+                                modifier = Modifier.weight(1.5f),
+                                textStyle = TextStyle(fontSize = 11.sp, color = Color.White),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = StudioCyan,
+                                    unfocusedBorderColor = StudioBorder
+                                )
+                            )
                         }
 
                         Surface(
@@ -512,10 +639,10 @@ fun LogcatTerminalSheet(
                                     .padding(10.dp),
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                if (filteredLogs.isEmpty()) {
+                                if (activeFilteredLogs.isEmpty()) {
                                     item {
                                         Text(
-                                            "No log messages recorded. Run or interact with your app to generate logs.",
+                                            if (logs.isEmpty()) "Belum ada log. Klik 'Capture' atau jalankan aplikasi." else "Tidak ada pesan yang cocok dengan filter.",
                                             color = Color.Gray,
                                             fontSize = 11.sp,
                                             fontFamily = FontFamily.Monospace
@@ -523,7 +650,7 @@ fun LogcatTerminalSheet(
                                     }
                                 }
 
-                                items(filteredLogs, key = { it.id }) { log ->
+                                items(activeFilteredLogs, key = { it.id }) { log ->
                                     val color = when (log.level) {
                                         "E" -> StudioRed
                                         "W" -> StudioOrange
@@ -726,6 +853,37 @@ fun LogcatTerminalSheet(
                         currentEditorContent = editorContent,
                         onAcceptAllIncoming = onAcceptAllDiffIncoming,
                         onAcceptAllCurrent = onAcceptAllDiffCurrent,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                    )
+                }
+                9 -> {
+                    // 1. APK Analyzer & Package Inspector
+                    ApkAnalyzerView(
+                        report = apkReport,
+                        isAnalyzing = isAnalyzingApk,
+                        onRefreshAnalysis = onRefreshApkAnalysis,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                    )
+                }
+                10 -> {
+                    // 3. String & Localization Manager
+                    StringLocalizationView(
+                        files = currentFiles,
+                        onSaveTranslations = onSaveStringTranslations,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                    )
+                }
+                11 -> {
+                    // 4. Maven Library Catalog & Adder
+                    MavenDependencyCatalogView(
+                        files = currentFiles,
+                        onAddDependencyToGradle = onAddMavenLibrary,
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
