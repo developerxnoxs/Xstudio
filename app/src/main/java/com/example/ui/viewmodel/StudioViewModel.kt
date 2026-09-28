@@ -37,6 +37,8 @@ import com.example.analyzer.ApkAnalyzerEngine
 import com.example.signing.KeystoreSignerEngine
 import com.example.signing.KeystoreDetails
 import com.example.ui.components.MavenLibraryDef
+import com.example.data.ai.CodeReviewIssue
+import com.example.data.ai.CodeReviewResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
@@ -576,6 +578,10 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
             )
         }
 
+        val model = _uiState.value.selectedAiModel
+        val history = _uiState.value.aiMessages.map { (if (it.isUser) "user" else "model") to it.message }
+        val thinking = _uiState.value.aiThinkingLevel
+
         viewModelScope.launch {
             val result = GeminiAiService.promptStudioBot(
                 userPrompt = prompt,
@@ -584,7 +590,10 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
                 activeFile = activeFile,
                 diagnostics = diagnostics,
                 lastBuildResult = lastBuild,
-                customApiKey = apiKey
+                customApiKey = apiKey,
+                model = model,
+                chatHistory = history,
+                thinkingLevel = thinking
             )
 
             val botMsg = AiChatMessage(
@@ -593,7 +602,8 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
                 message = result.explanation,
                 extractedCode = result.extractedCode,
                 fileOperations = result.fileOperations,
-                isAutoHealFix = result.isAutoHealed
+                isAutoHealFix = result.isAutoHealed,
+                tokenUsage = result.tokenUsage
             )
 
             _uiState.update {
@@ -2392,6 +2402,150 @@ class StudioViewModel(application: Application) : AndroidViewModel(application) 
             addLogcat("Logcat", "I", "Exported logcat to app/$exportFileName")
         }
     }
+
+    // ==================== ENHANCED AI CAPABILITIES ====================
+
+    fun setAiModel(model: String) {
+        _uiState.update { it.copy(selectedAiModel = model) }
+        val modelLabel = when (model) {
+            GeminiAiService.MODEL_PRO -> "Gemini 3.1 Pro (Deep Reasoning)"
+            GeminiAiService.MODEL_FLASH_LITE -> "Gemini 3.1 Flash Lite (Ultra Cepat)"
+            else -> "Gemini 3.5 Flash (Default)"
+        }
+        _uiState.update { it.copy(infoSnackbarMessage = "Model AI diubah ke: $modelLabel") }
+        addLogcat("StudioBot", "I", "Switched active AI Model to $model")
+    }
+
+    fun setAiThinkingLevel(level: String) {
+        _uiState.update { it.copy(aiThinkingLevel = level) }
+    }
+
+    fun openCodeReview() {
+        val active = _uiState.value.activeFile
+        if (active == null) {
+            _uiState.update { it.copy(infoSnackbarMessage = "Buka file kode terlebih dahulu untuk ditinjau") }
+            return
+        }
+        _uiState.update { it.copy(isCodeReviewOpen = true) }
+        if (_uiState.value.codeReviewResult == null || _uiState.value.codeReviewResult?.fileName != active.name) {
+            requestCodeReview()
+        }
+    }
+
+    fun closeCodeReview() {
+        _uiState.update { it.copy(isCodeReviewOpen = false) }
+    }
+
+    fun requestCodeReview() {
+        val active = _uiState.value.activeFile ?: return
+        val apiKey = _uiState.value.geminiApiKey
+        val content = _uiState.value.editorContent
+
+        _uiState.update { it.copy(isCodeReviewLoading = true) }
+        addLogcat("AiDoctor", "I", "Analyzing ${active.name} with Gemini 3.1 Pro...")
+
+        viewModelScope.launch {
+            val result = GeminiAiService.reviewCode(
+                code = content,
+                fileName = active.name,
+                customApiKey = apiKey,
+                model = GeminiAiService.MODEL_PRO
+            )
+            _uiState.update {
+                it.copy(
+                    isCodeReviewLoading = false,
+                    codeReviewResult = result
+                )
+            }
+            addLogcat("AiDoctor", "I", "Analysis finished. Score: ${result.overallScore}/100, Issues: ${result.issues.size}")
+        }
+    }
+
+    fun applyCodeReviewPatch(issue: CodeReviewIssue) {
+        val patch = issue.suggestedPatch ?: return
+        val currentContent = _uiState.value.editorContent
+
+        val lines = currentContent.lines().toMutableList()
+        val targetLineIdx = (issue.line - 1).coerceIn(0, (lines.size - 1).coerceAtLeast(0))
+        if (targetLineIdx in lines.indices) {
+            lines[targetLineIdx] = patch
+        } else {
+            lines.add(patch)
+        }
+        val newContent = lines.joinToString("\n")
+        updateEditorContent(newContent)
+        saveActiveFile()
+        _uiState.update { it.copy(infoSnackbarMessage = "Perbaikan AI berhasil diterapkan ke baris ${issue.line}") }
+    }
+
+    fun requestInlineCompletion(prefixCode: String, suffixCode: String) {
+        val active = _uiState.value.activeFile ?: return
+        val apiKey = _uiState.value.geminiApiKey
+        _uiState.update { it.copy(isGeneratingInlineCompletion = true) }
+        addLogcat("StudioBot", "I", "Requesting sub-second inline completion at cursor...")
+
+        viewModelScope.launch {
+            val completion = GeminiAiService.generateInlineCompletion(
+                prefixCode = prefixCode,
+                suffixCode = suffixCode,
+                fileName = active.name,
+                customApiKey = apiKey
+            )
+            if (completion.isNotBlank()) {
+                val fullNewContent = prefixCode + completion + suffixCode
+                updateEditorContent(fullNewContent)
+                _uiState.update { it.copy(infoSnackbarMessage = "AI melengkapi kode di kursor (+${completion.lines().size} baris)") }
+                addLogcat("StudioBot", "I", "Inline completion applied (+${completion.length} chars)")
+            } else {
+                _uiState.update { it.copy(infoSnackbarMessage = "Tidak ada saran kelanjutan kode pada posisi ini") }
+            }
+            _uiState.update {
+                it.copy(
+                    isGeneratingInlineCompletion = false,
+                    lastInlineCompletion = completion
+                )
+            }
+        }
+    }
+
+    fun askAiFixDiagnostic(diagnostic: BuildDiagnostic) {
+        val content = _uiState.value.editorContent
+        val apiKey = _uiState.value.geminiApiKey
+
+        _uiState.update {
+            it.copy(
+                isAiSheetOpen = true,
+                isAiThinking = true
+            )
+        }
+        addLogcat("AiDoctor", "W", "Healing diagnostic at ${diagnostic.fileName}:${diagnostic.line}...")
+
+        viewModelScope.launch {
+            val result = GeminiAiService.healDiagnostic(
+                diagnostic = diagnostic,
+                fileContent = content,
+                customApiKey = apiKey,
+                model = _uiState.value.selectedAiModel
+            )
+
+            val botMsg = AiChatMessage(
+                id = java.util.UUID.randomUUID().toString(),
+                isUser = false,
+                message = "🛠️ **Solusi Perbaikan AI untuk [${diagnostic.errorType.label}]**:\n${result.explanation}",
+                extractedCode = result.extractedCode,
+                fileOperations = result.fileOperations,
+                isAutoHealFix = true
+            )
+
+            _uiState.update {
+                it.copy(
+                    aiMessages = it.aiMessages + botMsg,
+                    isAiThinking = false
+                )
+            }
+        }
+    }
 }
+
 
 

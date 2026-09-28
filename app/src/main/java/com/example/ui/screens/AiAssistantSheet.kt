@@ -67,6 +67,9 @@ fun AiAssistantSheet(
     onInsertCode: (String) -> Unit,
     onReplaceFile: (String) -> Unit,
     onSaveApiKey: (String) -> Unit = {},
+    selectedModel: String = com.example.data.ai.GeminiAiService.MODEL_FLASH,
+    onSelectModel: (String) -> Unit = {},
+    onOpenCodeReview: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     if (!isOpen) return
@@ -157,6 +160,90 @@ fun AiAssistantSheet(
 
                 IconButton(onClick = onDismiss) {
                     Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.Gray)
+                }
+            }
+
+            // Enhanced Model Selector & AI Doctor Bar
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = StudioSurfaceVariant,
+                border = BorderStroke(0.5.dp, StudioBorder),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Model:",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.LightGray
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    LazyRow(
+                        modifier = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        item {
+                            FilterChip(
+                                selected = selectedModel == com.example.data.ai.GeminiAiService.MODEL_FLASH,
+                                onClick = { onSelectModel(com.example.data.ai.GeminiAiService.MODEL_FLASH) },
+                                label = { Text("⚡ 3.5 Flash", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = StudioGreen.copy(alpha = 0.25f),
+                                    selectedLabelColor = StudioGreen
+                                ),
+                                modifier = Modifier.height(26.dp)
+                            )
+                        }
+                        item {
+                            FilterChip(
+                                selected = selectedModel == com.example.data.ai.GeminiAiService.MODEL_PRO,
+                                onClick = { onSelectModel(com.example.data.ai.GeminiAiService.MODEL_PRO) },
+                                label = { Text("🧠 3.1 Pro", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = StudioCyan.copy(alpha = 0.25f),
+                                    selectedLabelColor = StudioCyan
+                                ),
+                                modifier = Modifier.height(26.dp)
+                            )
+                        }
+                        item {
+                            FilterChip(
+                                selected = selectedModel == com.example.data.ai.GeminiAiService.MODEL_FLASH_LITE,
+                                onClick = { onSelectModel(com.example.data.ai.GeminiAiService.MODEL_FLASH_LITE) },
+                                label = { Text("🚀 3.1 Lite", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = Color(0xFFFFB74D).copy(alpha = 0.25f),
+                                    selectedLabelColor = Color(0xFFFFB74D)
+                                ),
+                                modifier = Modifier.height(26.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    FilledTonalButton(
+                        onClick = onOpenCodeReview,
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = StudioGreen.copy(alpha = 0.2f),
+                            contentColor = StudioGreen
+                        ),
+                        modifier = Modifier.height(26.dp)
+                    ) {
+                        Icon(Icons.Default.HealthAndSafety, contentDescription = null, modifier = Modifier.size(12.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Dokter", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
 
@@ -379,6 +466,35 @@ fun AiAssistantSheet(
                                                             Text("Replace File", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                                         }
                                                     }
+                                                }
+                                            }
+                                        }
+
+                                        // Transparent Token Usage Metric
+                                        if (!msg.isUser && msg.tokenUsage != null && msg.tokenUsage.totalTokens > 0) {
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Surface(
+                                                shape = RoundedCornerShape(4.dp),
+                                                color = Color.Black.copy(alpha = 0.25f),
+                                                border = BorderStroke(0.5.dp, StudioGreen.copy(alpha = 0.3f))
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                ) {
+                                                    Icon(
+                                                        Icons.Default.Analytics,
+                                                        contentDescription = null,
+                                                        tint = StudioGreen,
+                                                        modifier = Modifier.size(10.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text(
+                                                        text = "Penggunaan: ${msg.tokenUsage.totalTokens} token (Prompt: ${msg.tokenUsage.promptTokens} • Respon: ${msg.tokenUsage.candidateTokens})",
+                                                        fontSize = 9.sp,
+                                                        fontFamily = FontFamily.Monospace,
+                                                        color = StudioGreen
+                                                    )
                                                 }
                                             }
                                         }

@@ -48,6 +48,8 @@ fun CodeEditorView(
     onRunManualCheck: () -> Unit = {},
     searchQuery: String = "",
     onAskAiFix: (BuildDiagnostic) -> Unit = {},
+    onAskAiComplete: (prefix: String, suffix: String) -> Unit = { _, _ -> },
+    onAskAiReview: () -> Unit = {},
     onDismissDiagnostic: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -320,6 +322,56 @@ fun CodeEditorView(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    item {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = StudioGreen.copy(alpha = 0.22f),
+                            border = BorderStroke(0.5.dp, StudioGreen.copy(alpha = 0.6f)),
+                            onClick = {
+                                val cursor = editorState.textFieldValue.selection.start
+                                val fullText = editorState.textFieldValue.text
+                                val prefix = fullText.take(cursor)
+                                val suffix = fullText.drop(cursor)
+                                onAskAiComplete(prefix, suffix)
+                            }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = StudioGreen, modifier = Modifier.size(12.dp))
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = "AI Complete",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = StudioGreen
+                                )
+                            }
+                        }
+                    }
+                    item {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = StudioCyan.copy(alpha = 0.2f),
+                            border = BorderStroke(0.5.dp, StudioCyan.copy(alpha = 0.5f)),
+                            onClick = onAskAiReview
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.HealthAndSafety, contentDescription = null, tint = StudioCyan, modifier = Modifier.size(12.dp))
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = "AI Doctor",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = StudioCyan
+                                )
+                            }
+                        }
+                    }
                     items(quickSnippets) { snippet ->
                         Surface(
                             shape = RoundedCornerShape(6.dp),

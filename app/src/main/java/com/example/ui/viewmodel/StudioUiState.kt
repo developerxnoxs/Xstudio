@@ -128,7 +128,8 @@ data class AiChatMessage(
     val extractedCode: String? = null,
     val fileOperations: List<AiFileOperation> = emptyList(),
     val isAutoHealFix: Boolean = false,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val tokenUsage: com.example.data.ai.TokenUsageInfo? = null
 )
 
 data class LogcatEntry(
@@ -213,5 +214,13 @@ data class StudioUiState(
     val isKeystoreSignerOpen: Boolean = false,
     val signedApkResult: com.example.signing.SignedApkResult? = null,
     val isSigningApk: Boolean = false,
-    val savedKeystoreDetails: com.example.signing.KeystoreDetails? = null
+    val savedKeystoreDetails: com.example.signing.KeystoreDetails? = null,
+    // AI Enhancement States
+    val selectedAiModel: String = "gemini-3.5-flash",
+    val aiThinkingLevel: String = "low",
+    val isCodeReviewOpen: Boolean = false,
+    val isCodeReviewLoading: Boolean = false,
+    val codeReviewResult: com.example.data.ai.CodeReviewResult? = null,
+    val isGeneratingInlineCompletion: Boolean = false,
+    val lastInlineCompletion: String? = null
 )

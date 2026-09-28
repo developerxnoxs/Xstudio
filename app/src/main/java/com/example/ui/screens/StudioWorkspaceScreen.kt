@@ -251,6 +251,36 @@ fun StudioWorkspaceScreen(
                                     }
                                 }
 
+                                // AI Doctor Quick Action
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = StudioCyan.copy(alpha = 0.15f),
+                                    border = BorderStroke(0.8.dp, StudioCyan.copy(alpha = 0.5f)),
+                                    modifier = Modifier
+                                        .height(32.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { viewModel.openCodeReview() }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.HealthAndSafety,
+                                            contentDescription = "AI Doctor",
+                                            tint = StudioCyan,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "Doctor",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = StudioCyan
+                                        )
+                                    }
+                                }
+
                                 // Overflow Menu
                                 Box {
                                     IconButton(
@@ -721,6 +751,8 @@ fun StudioWorkspaceScreen(
                                     onToggleRealtimeChecking = { viewModel.toggleRealtimeSyntaxChecking() },
                                     onRunManualCheck = { viewModel.runManualSyntaxCheck() },
                                     onAskAiFix = { viewModel.askAiFixForDiagnostic(it) },
+                                    onAskAiComplete = { prefix, suffix -> viewModel.requestInlineCompletion(prefix, suffix) },
+                                    onAskAiReview = { viewModel.openCodeReview() },
                                     onDismissDiagnostic = { viewModel.dismissActiveDiagnostic() },
                                     searchQuery = uiState.searchQuery
                                 )
@@ -759,6 +791,8 @@ fun StudioWorkspaceScreen(
                                             onToggleRealtimeChecking = { viewModel.toggleRealtimeSyntaxChecking() },
                                             onRunManualCheck = { viewModel.runManualSyntaxCheck() },
                                             onAskAiFix = { viewModel.askAiFixForDiagnostic(it) },
+                                            onAskAiComplete = { prefix, suffix -> viewModel.requestInlineCompletion(prefix, suffix) },
+                                            onAskAiReview = { viewModel.openCodeReview() },
                                             onDismissDiagnostic = { viewModel.dismissActiveDiagnostic() },
                                             searchQuery = uiState.searchQuery
                                         )
@@ -821,7 +855,22 @@ fun StudioWorkspaceScreen(
         onApplyAllFileOperations = { viewModel.applyAllAiFileOperations(it) },
         onInsertCode = { viewModel.insertCodeIntoEditor(it) },
         onReplaceFile = { viewModel.replaceEditorWithCode(it) },
-        onSaveApiKey = { viewModel.setGeminiApiKey(it) }
+        onSaveApiKey = { viewModel.setGeminiApiKey(it) },
+        selectedModel = uiState.selectedAiModel,
+        onSelectModel = { viewModel.setAiModel(it) },
+        onOpenCodeReview = { viewModel.openCodeReview() }
+    )
+
+    // AI Code Doctor & Review Sheet
+    AiCodeReviewSheet(
+        isOpen = uiState.isCodeReviewOpen,
+        isLoading = uiState.isCodeReviewLoading,
+        reviewResult = uiState.codeReviewResult,
+        activeFileName = uiState.activeFile?.name ?: "",
+        onDismiss = { viewModel.closeCodeReview() },
+        onReAnalyze = { viewModel.requestCodeReview() },
+        onApplyPatch = { viewModel.applyCodeReviewPatch(it) },
+        onNavigateToLine = { viewModel.highlightLine(it) }
     )
 
     // Logcat & Developer Tools Sheet
